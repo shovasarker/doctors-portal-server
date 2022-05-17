@@ -1,6 +1,6 @@
 const express = require('express')
 const cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb')
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 require('dotenv').config()
 
 const app = express()
@@ -23,6 +23,30 @@ const client = new MongoClient(uri, {
 const run = async () => {
   try {
     await client.connect()
+    const appointmentsCollection = client
+      .db('doctors_portal')
+      .collection('appointments')
+
+    const servicesCollection = client
+      .db('doctors_portal')
+      .collection('services')
+
+    app.get('/services', async (req, res) => {
+      const query = {}
+      const projection = { name: 1 }
+      const cursor = appointmentsCollection.find(query).project(projection)
+      const result = await cursor.toArray()
+
+      res.send(result)
+    })
+
+    app.get('/appointment/:serviceName', async (req, res) => {
+      const { serviceName } = req.params
+      console.log(serviceName)
+      const query = { name: serviceName }
+      const result = await appointmentsCollection.findOne(query)
+      res.send(result)
+    })
   } finally {
   }
 }
