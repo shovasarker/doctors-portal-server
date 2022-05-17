@@ -27,10 +27,6 @@ const run = async () => {
       .db('doctors_portal')
       .collection('appointments')
 
-    const servicesCollection = client
-      .db('doctors_portal')
-      .collection('services')
-
     app.get('/services', async (req, res) => {
       const query = {}
       const projection = { name: 1 }
