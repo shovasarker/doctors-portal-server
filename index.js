@@ -38,7 +38,6 @@ const run = async () => {
 
     app.get('/appointment/:serviceName', async (req, res) => {
       const { serviceName } = req.params
-      console.log(serviceName)
       const query = { name: serviceName }
       const result = await appointmentsCollection.findOne(query)
       res.send(result)
