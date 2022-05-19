@@ -65,6 +65,8 @@ const run = async () => {
       res.send(result)
     })
 
+    //! this is not the proper way to query
+    //! use aggregate lookup, pipeline, match, group
     app.get('/available', async (req, res) => {
       const date = req.query.date
 
@@ -83,12 +85,14 @@ const run = async () => {
         )
         const booked = serviceBookings.map((b) => b.slot)
         const available = service?.slots.filter((s) => !booked.includes(s.time))
-        service.slots = available
+        service.available = available
       })
 
       res.send(services)
     })
 
+    //! this is not the proper way to query
+    //! use aggregate lookup, pipeline, match, group
     app.get('/appointment/:serviceName', async (req, res) => {
       const { serviceName } = req.params
       const date = req.query.date
@@ -105,6 +109,14 @@ const run = async () => {
       const available = service?.slots.filter((s) => !booked.includes(s.time))
       service.available = available
       res.send(service)
+    })
+
+    app.get('/booking', async (req, res) => {
+      const { date, email } = req.query
+      const query = { date: date, 'patient.email': email }
+      const result = await bookingCollection.find(query).toArray()
+
+      res.send(result)
     })
   } finally {
   }
