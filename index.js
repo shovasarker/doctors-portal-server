@@ -27,6 +27,9 @@ const run = async () => {
       .db('doctors_portal')
       .collection('appointments')
 
+    const bookingCollection = client.db('doctors_portal').collection('bookings')
+
+    // services endpoint to get all the Services Name
     app.get('/services', async (req, res) => {
       const query = {}
       const projection = { name: 1 }
@@ -40,6 +43,32 @@ const run = async () => {
       const { serviceName } = req.params
       const query = { name: serviceName }
       const result = await appointmentsCollection.findOne(query)
+      res.send(result)
+    })
+
+    //add a new booking
+    app.post('/booking', async (req, res) => {
+      const booking = req.body
+      // Checking if same treatment is booked in another time on same day by the same person
+      const query = {
+        treatment: booking.treatment,
+        date: booking.date,
+        'patient.email': booking.patient.email,
+      }
+      const exists = await bookingCollection.findOne(query)
+      if (exists) return res.send({ success: false, booking: exists })
+
+      // Checking if another treatment is booked by the same patient in same timeSlot in same day.
+      const newQuery = {
+        date: booking.date,
+        slot: booking.slot,
+        'patient.email': booking.patient.email,
+      }
+      const another = await bookingCollection.findOne(newQuery)
+
+      if (another) return res.send({ success: false, booking: another })
+
+      const result = await bookingCollection.insertOne(booking)
       res.send(result)
     })
   } finally {
