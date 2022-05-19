@@ -39,13 +39,6 @@ const run = async () => {
       res.send(result)
     })
 
-    app.get('/appointment/:serviceName', async (req, res) => {
-      const { serviceName } = req.params
-      const query = { name: serviceName }
-      const result = await appointmentsCollection.findOne(query)
-      res.send(result)
-    })
-
     //add a new booking
     app.post('/booking', async (req, res) => {
       const booking = req.body
@@ -70,6 +63,48 @@ const run = async () => {
 
       const result = await bookingCollection.insertOne(booking)
       res.send(result)
+    })
+
+    app.get('/available', async (req, res) => {
+      const date = req.query.date
+
+      //step 1: get all services
+
+      const services = await appointmentsCollection.find({}).toArray()
+
+      // step 2: get the booking of that day
+      const query = { date: date }
+      const bookings = await bookingCollection.find(query).toArray()
+
+      // for each service find bookings for that service
+      services.forEach((service) => {
+        const serviceBookings = bookings.filter(
+          (b) => b.treatment === service.name
+        )
+        const booked = serviceBookings.map((b) => b.slot)
+        const available = service?.slots.filter((s) => !booked.includes(s.time))
+        service.slots = available
+      })
+
+      res.send(services)
+    })
+
+    app.get('/appointment/:serviceName', async (req, res) => {
+      const { serviceName } = req.params
+      const date = req.query.date
+      const query = { name: serviceName }
+      const service = await appointmentsCollection.findOne(query)
+
+      const bookingsQuery = { date: date }
+      const bookings = await bookingCollection.find(bookingsQuery).toArray()
+
+      const serviceBookings = bookings.filter(
+        (b) => b.treatment === service.name
+      )
+      const booked = serviceBookings.map((b) => b.slot)
+      const available = service?.slots.filter((s) => !booked.includes(s.time))
+      service.slots = available
+      res.send(service)
     })
   } finally {
   }
