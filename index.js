@@ -103,7 +103,7 @@ const run = async () => {
       )
       const booked = serviceBookings.map((b) => b.slot)
       const available = service?.slots.filter((s) => !booked.includes(s.time))
-      service.slots = available
+      service.available = available
       res.send(service)
     })
   } finally {
