@@ -10,6 +10,22 @@ app.use(express.json())
 
 const port = process.env.PORT || 5000
 
+const verifyJWT = (req, res, next) => {
+  const { authorization } = req.headers
+  if (!authorization) {
+    return res.status(401).send({ message: 'UnAuthorized Access' })
+  }
+
+  const token = authorization.split(' ')[1]
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) return res.status(403).send({ message: 'Forbidden Access' })
+
+    req.decoded = decoded
+    next()
+  })
+}
+
 app.get('/', (req, res) => {
   res.send('Doctors Portal Server is Running')
 })
@@ -31,9 +47,43 @@ const run = async () => {
     const bookingCollection = client.db('doctors_portal').collection('bookings')
     const userCollection = client.db('doctors_portal').collection('users')
 
+    app.get('/user', verifyJWT, async (req, res) => {
+      const query = {}
+      const users = await userCollection.find(query).toArray()
+
+      res.send(users)
+    })
+
+    app.get('/admin/:email', verifyJWT, async (req, res) => {
+      const { email } = req.params
+      const user = await userCollection.findOne({ email })
+      const isAdmin = user.role === 'admin'
+
+      res.send({ admin: isAdmin })
+    })
+
+    app.put('/user/admin/:email', verifyJWT, async (req, res) => {
+      const { email } = req.params
+
+      const requestor = req.decoded.email
+      const query = { email: requestor }
+      const requestorAccount = await userCollection.findOne(query)
+
+      if (requestorAccount.role !== 'admin')
+        return res.status(403).send({ message: 'Forbidden Request' })
+
+      const filter = { email: email }
+      const updateDoc = {
+        $set: {
+          role: 'admin',
+        },
+      }
+      const result = await userCollection.updateOne(filter, updateDoc)
+      res.send(result)
+    })
+
     app.put('/user/:email', async (req, res) => {
       const { email } = req.params
-      console.log(email)
       const user = req.body
       const filter = { email: email }
       const options = { upsert: true }
@@ -131,8 +181,11 @@ const run = async () => {
       res.send(service)
     })
 
-    app.get('/booking', async (req, res) => {
+    app.get('/booking', verifyJWT, async (req, res) => {
       const { date, email } = req.query
+      const decoded = req.decoded
+      if (email !== decoded.email)
+        return res.status(403).send({ message: 'Forbidden Access' })
       const query = { date: date, 'patient.email': email }
       const result = await bookingCollection.find(query).toArray()
 
