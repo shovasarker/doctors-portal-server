@@ -48,6 +48,18 @@ const run = async () => {
     const userCollection = client.db('doctors_portal').collection('users')
     const doctorCollection = client.db('doctors_portal').collection('doctors')
 
+    const verifyAdmin = async (req, res, next) => {
+      const requestor = req.decoded.email
+      const query = { email: requestor }
+      const requestorAccount = await userCollection.findOne(query)
+
+      if (requestorAccount.role !== 'admin') {
+        return res.status(403).send({ message: 'Forbidden Request' })
+      }
+
+      next()
+    }
+
     app.get('/user', verifyJWT, async (req, res) => {
       const query = {}
       const users = await userCollection.find(query).toArray()
@@ -63,15 +75,8 @@ const run = async () => {
       res.send({ admin: isAdmin })
     })
 
-    app.put('/user/admin/:email', verifyJWT, async (req, res) => {
+    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
       const { email } = req.params
-
-      const requestor = req.decoded.email
-      const query = { email: requestor }
-      const requestorAccount = await userCollection.findOne(query)
-
-      if (requestorAccount.role !== 'admin')
-        return res.status(403).send({ message: 'Forbidden Request' })
 
       const filter = { email: email }
       const updateDoc = {
@@ -193,7 +198,12 @@ const run = async () => {
       res.send(result)
     })
 
-    app.post('/doctor', verifyJWT, async (req, res) => {
+    app.get('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
+      const result = await doctorCollection.find({}).toArray()
+      res.send(result)
+    })
+
+    app.post('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
       const doctor = req.body
       const result = await doctorCollection.insertOne(doctor)
 
