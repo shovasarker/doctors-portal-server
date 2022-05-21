@@ -46,6 +46,7 @@ const run = async () => {
       .collection('appointments')
     const bookingCollection = client.db('doctors_portal').collection('bookings')
     const userCollection = client.db('doctors_portal').collection('users')
+    const doctorCollection = client.db('doctors_portal').collection('doctors')
 
     app.get('/user', verifyJWT, async (req, res) => {
       const query = {}
@@ -188,6 +189,13 @@ const run = async () => {
         return res.status(403).send({ message: 'Forbidden Access' })
       const query = { date: date, 'patient.email': email }
       const result = await bookingCollection.find(query).toArray()
+
+      res.send(result)
+    })
+
+    app.post('/doctor', verifyJWT, async (req, res) => {
+      const doctor = req.body
+      const result = await doctorCollection.insertOne(doctor)
 
       res.send(result)
     })
