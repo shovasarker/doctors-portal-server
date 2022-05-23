@@ -3,6 +3,7 @@ const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 require('dotenv').config()
 const jwt = require('jsonwebtoken')
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 
 const app = express()
 app.use(cors())
@@ -47,6 +48,7 @@ const run = async () => {
     const bookingCollection = client.db('doctors_portal').collection('bookings')
     const userCollection = client.db('doctors_portal').collection('users')
     const doctorCollection = client.db('doctors_portal').collection('doctors')
+    const paymentCollection = client.db('doctors_portal').collection('payments')
 
     const verifyAdmin = async (req, res, next) => {
       const requestor = req.decoded.email
@@ -115,32 +117,6 @@ const run = async () => {
       res.send(result)
     })
 
-    //add a new booking
-    app.post('/booking', async (req, res) => {
-      const booking = req.body
-      // Checking if same treatment is booked in another time on same day by the same person
-      const query = {
-        treatment: booking.treatment,
-        date: booking.date,
-        'patient.email': booking.patient.email,
-      }
-      const exists = await bookingCollection.findOne(query)
-      if (exists) return res.send({ success: false, booking: exists })
-
-      // Checking if another treatment is booked by the same patient in same timeSlot in same day.
-      const newQuery = {
-        date: booking.date,
-        slot: booking.slot,
-        'patient.email': booking.patient.email,
-      }
-      const another = await bookingCollection.findOne(newQuery)
-
-      if (another) return res.send({ success: false, booking: another })
-
-      const result = await bookingCollection.insertOne(booking)
-      res.send(result)
-    })
-
     //! this is not the proper way to query
     //! use aggregate lookup, pipeline, match, group
     app.get('/available', async (req, res) => {
@@ -187,6 +163,32 @@ const run = async () => {
       res.send(service)
     })
 
+    //add a new booking
+    app.post('/booking', async (req, res) => {
+      const booking = req.body
+      // Checking if same treatment is booked in another time on same day by the same person
+      const query = {
+        treatment: booking.treatment,
+        date: booking.date,
+        'patient.email': booking.patient.email,
+      }
+      const exists = await bookingCollection.findOne(query)
+      if (exists) return res.send({ success: false, booking: exists })
+
+      // Checking if another treatment is booked by the same patient in same timeSlot in same day.
+      const newQuery = {
+        date: booking.date,
+        slot: booking.slot,
+        'patient.email': booking.patient.email,
+      }
+      const another = await bookingCollection.findOne(newQuery)
+
+      if (another) return res.send({ success: false, booking: another })
+
+      const result = await bookingCollection.insertOne(booking)
+      res.send(result)
+    })
+
     app.get('/booking', verifyJWT, async (req, res) => {
       const { date, email } = req.query
       const decoded = req.decoded
@@ -207,6 +209,25 @@ const run = async () => {
       res.send(booking)
     })
 
+    app.patch('/booking/:id', verifyJWT, async (req, res) => {
+      const { id } = req.params
+      const payment = req.body
+      const filter = { _id: ObjectId(id) }
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.transactionId,
+        },
+      }
+
+      const updatedBooking = await bookingCollection.updateOne(
+        filter,
+        updatedDoc
+      )
+      const result = await paymentCollection.insertOne(payment)
+      res.send(updatedBooking)
+    })
+
     app.get('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await doctorCollection.find({}).toArray()
       res.send(result)
@@ -225,6 +246,20 @@ const run = async () => {
       const result = await doctorCollection.deleteOne(filter)
 
       res.send(result)
+    })
+
+    //. payment-intent-api
+    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+      const service = req.body
+      const price = service.price
+      const amount = price * 100
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      })
+
+      res.send({ clientSecret: paymentIntent.client_secret })
     })
   } finally {
   }
