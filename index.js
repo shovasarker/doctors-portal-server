@@ -198,6 +198,15 @@ const run = async () => {
       res.send(result)
     })
 
+    app.get('/booking/:id', verifyJWT, async (req, res) => {
+      const { id } = req.params
+
+      const query = { _id: ObjectId(id) }
+      const booking = await bookingCollection.findOne(query)
+
+      res.send(booking)
+    })
+
     app.get('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await doctorCollection.find({}).toArray()
       res.send(result)
